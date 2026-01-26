@@ -1,8 +1,11 @@
 import os
 import asyncio
+import time
 from pathlib import Path
+
 from agents import Agent, Runner
 from agents.mcp import MCPServerStreamableHttp
+
 
 def load_env_value(key: str, env_file: str = ".env") -> str:
     """Load the provided environment variable from a simple KEY=VALUE file."""
@@ -14,31 +17,53 @@ def load_env_value(key: str, env_file: str = ".env") -> str:
         line = raw_line.strip()
         if not line or line.startswith("#") or "=" not in line:
             continue
+
         env_key, env_value = line.split("=", 1)
         if env_key.strip() != key:
             continue
 
-        value = env_value.strip().strip("\"").strip("'")
+        value = env_value.strip().strip('"').strip("'")
         os.environ[key] = value
         return value
 
     raise KeyError(f"{key} not found in {env_file}")
 
+
 async def main():
     env_file = os.environ.get("OPENAI_AGENT_ENV", ".env")
     load_env_value("OPENAI_API_KEY", env_file)
 
-
     conversation_history = []
+
+    # ---- TIMEOUTS (seconds) ----
+    # 1) MCP ClientSession read timeout (THIS is the 5s you're seeing)
+    MCP_CLIENT_SESSION_TIMEOUT = 180  # seconds
+
+    # 2) HTTP request timeout to your MCP server
+    MCP_HTTP_TIMEOUT = 180  # seconds
+
+    # 3) SSE read timeout (how long to wait for SSE data on stream)
+    MCP_SSE_READ_TIMEOUT = 15 * 60  # seconds (15 minutes)
+
+    # 4) Outer guard (overall agent run)
+    RUN_TIMEOUT_SECONDS = 240  # seconds
 
     async with MCPServerStreamableHttp(
         name="unity-mcp",
-        params={"url": "http://localhost:3000/mcp", "timeout": 20},
+        params={
+            "url": "http://localhost:3000/mcp",
+            "timeout": MCP_HTTP_TIMEOUT,            # seconds (NOT ms)
+            "sse_read_timeout": MCP_SSE_READ_TIMEOUT,
+            # "terminate_on_close": True,           # default True
+        },
         cache_tools_list=True,
+        client_session_timeout_seconds=MCP_CLIENT_SESSION_TIMEOUT,
     ) as server:
         agent = Agent(
             name="Tester",
-            instructions="Call the MCP tool test_log with message='hello from agent' and level='info'.",
+            instructions=(
+                "Call the MCP tool test_log with message='hello from agent' and level='info'."
+            ),
             mcp_servers=[server],
         )
 
@@ -51,18 +76,26 @@ async def main():
                 print("Agent: Bye!")
                 break
 
-            # Append user message to history
             conversation_history.append({"role": "user", "content": user_message})
 
             try:
-                # Run agent with conversation context
-                out = await Runner.run(agent, conversation_history)
-            except Exception as exc:  # keep chat alive if MCP/tool call fails
+                start = time.time()
+                out = await asyncio.wait_for(
+                    Runner.run(agent, conversation_history),
+                    timeout=RUN_TIMEOUT_SECONDS,
+                )
+                elapsed = time.time() - start
+            except asyncio.TimeoutError:
+                print(f"Agent: Timed out after {RUN_TIMEOUT_SECONDS}s (overall run timeout).")
+                continue
+            except Exception as exc:
                 print(f"Agent error: {exc}")
                 continue
 
-            # Append agent response to history
             conversation_history.append({"role": "assistant", "content": out.final_output})
-            print(f"Agent: {out.final_output}")
+            print(f"Agent ({elapsed:.2f}s): {out.final_output}")
 
-asyncio.run(main())
+
+if __name__ == "__main__":
+    asyncio.run(main())
+
