@@ -4,7 +4,6 @@ from pathlib import Path
 from agents import Agent, Runner
 from agents.mcp import MCPServerStreamableHttp
 
-
 def load_env_value(key: str, env_file: str = ".env") -> str:
     """Load the provided environment variable from a simple KEY=VALUE file."""
     env_path = Path(env_file)
@@ -28,6 +27,10 @@ def load_env_value(key: str, env_file: str = ".env") -> str:
 async def main():
     env_file = os.environ.get("OPENAI_AGENT_ENV", ".env")
     load_env_value("OPENAI_API_KEY", env_file)
+
+
+    conversation_history = []
+
     async with MCPServerStreamableHttp(
         name="unity-mcp",
         params={"url": "http://localhost:3000/mcp", "timeout": 20},
@@ -47,11 +50,19 @@ async def main():
             if user_message.lower() in {"exit", "quit"}:
                 print("Agent: Bye!")
                 break
+
+            # Append user message to history
+            conversation_history.append({"role": "user", "content": user_message})
+
             try:
-                out = await Runner.run(agent, user_message)
+                # Run agent with conversation context
+                out = await Runner.run(agent, conversation_history)
             except Exception as exc:  # keep chat alive if MCP/tool call fails
                 print(f"Agent error: {exc}")
                 continue
+
+            # Append agent response to history
+            conversation_history.append({"role": "assistant", "content": out.final_output})
             print(f"Agent: {out.final_output}")
 
 asyncio.run(main())
