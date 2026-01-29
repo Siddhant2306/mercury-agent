@@ -1,0 +1,9 @@
+# Core async / HTTP stack (pulled in transitively, but good to pin)
+aiohttp>=3.9.0
+async-timeout>=4.0.3
+
+# OpenAI Agents SDK (provides Agent, Runner, MCPServerStreamableHttp)
+openai-agents>=0.3.0
+
+# Optional but strongly recommended
+python-dotenv>=1.0.1
