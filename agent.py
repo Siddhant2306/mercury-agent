@@ -34,19 +34,25 @@ async def main():
     load_env_value("OPENAI_API_KEY", env_file)
 
     conversation_history = []
+    prompt_file = Path(os.environ.get("AGENT_PROMPT_FILE", "prompt.txt"))
+    if not prompt_file.exists():
+        raise FileNotFoundError(
+            f"Prompt file '{prompt_file}' not found. Create it or set AGENT_PROMPT_FILE."
+        )
+    system_prompt = prompt_file.read_text().strip()
 
     # ---- TIMEOUTS (seconds) ----
     # 1) MCP ClientSession read timeout (THIS is the 5s you're seeing)
-    MCP_CLIENT_SESSION_TIMEOUT = 180  # seconds
+    MCP_CLIENT_SESSION_TIMEOUT = 900  # seconds
 
     # 2) HTTP request timeout to your MCP server
-    MCP_HTTP_TIMEOUT = 180  # seconds
+    MCP_HTTP_TIMEOUT = 900  # seconds
 
     # 3) SSE read timeout (how long to wait for SSE data on stream)
-    MCP_SSE_READ_TIMEOUT = 15 * 60  # seconds (15 minutes)
+    MCP_SSE_READ_TIMEOUT = 60 * 60  # seconds (1 hour)
 
     # 4) Outer guard (overall agent run)
-    RUN_TIMEOUT_SECONDS = 240  # seconds
+    RUN_TIMEOUT_SECONDS = 1800  # seconds
 
     async with MCPServerStreamableHttp(
         name="unity-mcp",
@@ -61,9 +67,7 @@ async def main():
     ) as server:
         agent = Agent(
             name="Tester",
-            instructions=(
-                "Call the MCP tool test_log with message='hello from agent' and level='info'."
-            ),
+            instructions=system_prompt,
             mcp_servers=[server],
         )
 
@@ -81,7 +85,7 @@ async def main():
             try:
                 start = time.time()
                 out = await asyncio.wait_for(
-                    Runner.run(agent, conversation_history),
+                    Runner.run(agent, conversation_history, max_turns=100),
                     timeout=RUN_TIMEOUT_SECONDS,
                 )
                 elapsed = time.time() - start
@@ -98,4 +102,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
