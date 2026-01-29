@@ -6,28 +6,7 @@ from pathlib import Path
 
 from agents import Agent, Runner
 from agents.mcp import MCPServerStreamableHttp
-
-
-def load_env_value(key: str, env_file: str = ".env") -> str:
-    """Load the provided environment variable from a simple KEY=VALUE file."""
-    env_path = Path(env_file)
-    if not env_path.exists():
-        raise FileNotFoundError(f"Environment file '{env_file}' not found")
-
-    for raw_line in env_path.read_text().splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-
-        env_key, env_value = line.split("=", 1)
-        if env_key.strip() != key:
-            continue
-
-        value = env_value.strip().strip('"').strip("'")
-        os.environ[key] = value
-        return value
-
-    raise KeyError(f"{key} not found in {env_file}")
+from dotenv import load_dotenv
 
 
 async def main():
@@ -41,8 +20,23 @@ async def main():
     )
     args = parser.parse_args()
 
+    # Try to load environment variables with proper error handling
     env_file = os.environ.get("OPENAI_AGENT_ENV", ".env")
-    load_env_value("OPENAI_API_KEY", env_file)
+
+    try:
+        # Load environment variables from .env file
+        load_dotenv(env_file)
+
+        # Check if OPENAI_API_KEY is set
+        if not os.environ.get("OPENAI_API_KEY"):
+            print(f"Warning: OPENAI_API_KEY not found in environment or {env_file}")
+            print("Please set OPENAI_API_KEY in your .env file or environment")
+            return
+
+    except Exception as e:
+        print(f"Error loading environment variables from {env_file}: {e}")
+        print("Make sure the .env file exists and contains OPENAI_API_KEY=your_key")
+        return
 
     conversation_history = []
     prompt_file = Path(os.environ.get("AGENT_PROMPT_FILE", "prompt.txt"))
