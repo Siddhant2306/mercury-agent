@@ -18,11 +18,46 @@ sessions: Dict[str, List[Dict[str, str]]] = {}
 # Global agent instance
 agent_instance = None
 
+# Global server metadata
+server_start_time = None
+mcp_url = None
+
 # Configuration constants
 MCP_CLIENT_SESSION_TIMEOUT = 900  # seconds
 MCP_HTTP_TIMEOUT = 900  # seconds
 MCP_SSE_READ_TIMEOUT = 60 * 60  # seconds (1 hour)
 RUN_TIMEOUT_SECONDS = 1800  # seconds
+
+
+async def health_handler(request: web.Request) -> web.Response:
+    """Handle health check endpoint"""
+    global agent_instance
+
+    health_status = {
+        "status": "healthy" if agent_instance is not None else "unhealthy",
+        "timestamp": time.time(),
+        "uptime": time.time() - server_start_time if 'server_start_time' in globals() else 0,
+        "agent": {
+            "initialized": agent_instance is not None,
+            "name": agent_instance.name if agent_instance else None
+        },
+        "sessions": {
+            "active": len(sessions),
+            "session_ids": list(sessions.keys())
+        },
+        "configuration": {
+            "mcp_url": mcp_url if 'mcp_url' in globals() else None,
+            "timeouts": {
+                "mcp_client_session": MCP_CLIENT_SESSION_TIMEOUT,
+                "mcp_http": MCP_HTTP_TIMEOUT,
+                "mcp_sse_read": MCP_SSE_READ_TIMEOUT,
+                "run_timeout": RUN_TIMEOUT_SECONDS
+            }
+        }
+    }
+
+    status_code = 200 if health_status["status"] == "healthy" else 503
+    return web.json_response(health_status, status=status_code)
 
 
 async def chat_handler(request: web.Request) -> web.Response:
@@ -128,7 +163,10 @@ async def init_agent(mcp_url: str, system_prompt: str) -> Agent:
 
 
 async def main():
-    global agent_instance
+    global agent_instance, server_start_time, mcp_url
+
+    # Record server start time
+    server_start_time = time.time()
 
     # Parse command line arguments
     parser = argparse.ArgumentParser(description='Mercury Agent HTTP API Server')
@@ -146,6 +184,9 @@ async def main():
     )
     args = parser.parse_args()
 
+    # Store MCP URL globally
+    mcp_url = args.mcp_url
+
     # Load prompt file
     prompt_file = Path(os.environ.get("AGENT_PROMPT_FILE", "prompt.txt"))
     if not prompt_file.exists():
@@ -159,17 +200,20 @@ async def main():
 
     # Create web application
     app = web.Application()
+    app.router.add_get('/health', health_handler)
     app.router.add_post('/chat', chat_handler)
 
     # Start server
     print(f"Starting HTTP server on port {args.port}")
-    print(f"API endpoint: http://localhost:{args.port}/chat")
+    print(f"API endpoints:")
+    print(f"  - Health: http://localhost:{args.port}/health")
+    print(f"  - Chat:   http://localhost:{args.port}/chat")
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, 'localhost', args.port)
     await site.start()
 
-    print("Server is running. Press Ctrl+C to stop.")
+    print("\nServer is running. Press Ctrl+C to stop.")
     try:
         await asyncio.Event().wait()
     except KeyboardInterrupt:

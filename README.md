@@ -25,6 +25,60 @@ http://localhost:<port>
 
 ### Endpoints
 
+The API provides two main endpoints:
+
+#### GET `/health`
+Health check endpoint to monitor server status and configuration. This endpoint is useful for:
+- Container orchestration health checks (Kubernetes, Docker)
+- Load balancer health probes
+- Monitoring systems (Prometheus, Datadog, etc.)
+- Uptime monitoring services
+
+**Request:**
+- Method: `GET`
+- No request body required
+
+**Response:**
+- Content-Type: `application/json`
+- Success (200 OK) - Server is healthy:
+  ```json
+  {
+    "status": "healthy",
+    "timestamp": 1706548623.45,
+    "uptime": 3600.5,
+    "agent": {
+      "initialized": true,
+      "name": "Tester"
+    },
+    "sessions": {
+      "active": 3,
+      "session_ids": ["default", "user123", "user456"]
+    },
+    "configuration": {
+      "mcp_url": "http://localhost:3000/mcp",
+      "timeouts": {
+        "mcp_client_session": 900,
+        "mcp_http": 900,
+        "mcp_sse_read": 3600,
+        "run_timeout": 1800
+      }
+    }
+  }
+  ```
+- Unhealthy (503 Service Unavailable) - Agent not initialized:
+  ```json
+  {
+    "status": "unhealthy",
+    "timestamp": 1706548623.45,
+    "uptime": 0,
+    "agent": {
+      "initialized": false,
+      "name": null
+    },
+    ...
+  }
+  ```
+
 #### POST `/chat`
 Send a message to the AI agent and receive a response.
 
@@ -63,6 +117,9 @@ Send a message to the AI agent and receive a response.
 
 #### Using curl:
 ```bash
+# Health check
+curl http://localhost:8080/health
+
 # Simple message
 curl -X POST http://localhost:8080/chat \
   -H "Content-Type: application/json" \
@@ -77,6 +134,10 @@ curl -X POST http://localhost:8080/chat \
 #### Using Python:
 ```python
 import requests
+
+# Health check
+health = requests.get("http://localhost:8080/health")
+print(f"Server status: {health.json()['status']}")
 
 # Simple request
 response = requests.post(
@@ -99,6 +160,11 @@ print(response.json())
 
 #### Using JavaScript:
 ```javascript
+// Health check
+fetch('http://localhost:8080/health')
+  .then(response => response.json())
+  .then(data => console.log('Server status:', data.status));
+
 // Simple request
 fetch('http://localhost:8080/chat', {
   method: 'POST',
