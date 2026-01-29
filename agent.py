@@ -1,6 +1,7 @@
 import os
 import asyncio
 import time
+import argparse
 from pathlib import Path
 
 from agents import Agent, Runner
@@ -30,6 +31,16 @@ def load_env_value(key: str, env_file: str = ".env") -> str:
 
 
 async def main():
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Mercury Agent with configurable MCP server URL')
+    parser.add_argument(
+        '--mcp-url',
+        type=str,
+        default='http://localhost:3000/mcp',
+        help='MCP server URL (default: http://localhost:3000/mcp)'
+    )
+    args = parser.parse_args()
+
     env_file = os.environ.get("OPENAI_AGENT_ENV", ".env")
     load_env_value("OPENAI_API_KEY", env_file)
 
@@ -54,10 +65,12 @@ async def main():
     # 4) Outer guard (overall agent run)
     RUN_TIMEOUT_SECONDS = 1800  # seconds
 
+    print(f"Connecting to MCP server at: {args.mcp_url}")
+
     async with MCPServerStreamableHttp(
         name="unity-mcp",
         params={
-            "url": "http://localhost:3000/mcp",
+            "url": args.mcp_url,
             "timeout": MCP_HTTP_TIMEOUT,            # seconds (NOT ms)
             "sse_read_timeout": MCP_SSE_READ_TIMEOUT,
             # "terminate_on_close": True,           # default True
