@@ -206,18 +206,29 @@ async def main():
         default=8080,
         help='Port to run the HTTP server on (default: 8080)'
     )
+    parser.add_argument(
+        '--prompt-file',
+        type=str,
+        help='Path to the system prompt file (overrides AGENT_PROMPT_FILE env var, default: prompt.txt)'
+    )
     args = parser.parse_args()
 
     # Store MCP URL globally
     mcp_url = args.mcp_url
 
     # Load prompt file
-    prompt_file = Path(os.environ.get("AGENT_PROMPT_FILE", "prompt.txt"))
+    # Priority: 1) CLI argument, 2) Environment variable, 3) Default "prompt.txt"
+    if args.prompt_file:
+        prompt_file = Path(args.prompt_file)
+    else:
+        prompt_file = Path(os.environ.get("AGENT_PROMPT_FILE", "prompt.txt"))
+
     if not prompt_file.exists():
         raise FileNotFoundError(
-            f"Prompt file '{prompt_file}' not found. Create it or set AGENT_PROMPT_FILE."
+            f"Prompt file '{prompt_file}' not found. Use --prompt-file argument, set AGENT_PROMPT_FILE env var, or create prompt.txt."
         )
     system_prompt = prompt_file.read_text().strip()
+    print(f"Loading system prompt from: {prompt_file}")
 
     # Initialize agent
     agent_instance = await init_agent(args.mcp_url, system_prompt)

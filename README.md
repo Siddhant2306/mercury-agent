@@ -14,6 +14,12 @@ python agent.py --port 3000
 
 # Specify custom MCP server URL
 python agent.py --mcp-url http://your-server:8080/mcp --port 3000
+
+# Use a custom system prompt file
+python agent.py --prompt-file custom-prompt.txt
+
+# Combine multiple options
+python agent.py --port 3000 --prompt-file prompts/assistant.txt --mcp-url http://your-server:8080/mcp
 ```
 
 ## API Documentation
@@ -225,6 +231,7 @@ fetch('http://localhost:8080/chat', {
 
 - `--port`: Port to run the HTTP server on (default: 8080)
 - `--mcp-url`: MCP server URL (default: http://localhost:3000/mcp)
+- `--prompt-file`: Path to the system prompt file (overrides AGENT_PROMPT_FILE env var, default: prompt.txt)
 - `--help`: Show help message
 
 ### Examples:
@@ -235,8 +242,11 @@ python agent.py --port 3000
 # Connect to a different MCP server
 python agent.py --mcp-url https://api.example.com/mcp
 
-# Both custom port and MCP URL
-python agent.py --port 5000 --mcp-url http://localhost:4000/mcp
+# Use a custom prompt file
+python agent.py --prompt-file prompts/my-agent.txt
+
+# All options combined
+python agent.py --port 5000 --mcp-url http://localhost:4000/mcp --prompt-file custom-prompt.txt
 ```
 
 ## Environment Variables
@@ -244,6 +254,13 @@ python agent.py --port 5000 --mcp-url http://localhost:4000/mcp
 - `OPENAI_API_KEY`: Required. Can be set in a `.env` file
 - `OPENAI_AGENT_ENV`: Path to the environment file (default: `.env`)
 - `AGENT_PROMPT_FILE`: Path to the system prompt file (default: `prompt.txt`)
+
+### System Prompt File Priority
+
+The system prompt file is determined in the following priority order:
+1. Command line argument: `--prompt-file`
+2. Environment variable: `AGENT_PROMPT_FILE`
+3. Default: `prompt.txt`
 
 ## Session Management
 
