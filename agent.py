@@ -5,11 +5,10 @@ import argparse
 from pathlib import Path
 import json
 from aiohttp import web
-from typing import Dict, List, Any
+from typing import Dict, List
 
 from agents import Agent, Runner
 from agents.mcp import MCPServerStreamableHttp
-from dotenv import load_dotenv
 
 
 # Global storage for conversation sessions
@@ -58,6 +57,31 @@ async def health_handler(request: web.Request) -> web.Response:
 
     status_code = 200 if health_status["status"] == "healthy" else 503
     return web.json_response(health_status, status=status_code)
+
+
+async def shutdown_handler(request: web.Request) -> web.Response:
+    """Handle shutdown endpoint - gracefully exits the Python process"""
+    print("Shutdown requested via /shutdown endpoint")
+
+    # Prepare shutdown response
+    shutdown_info = {
+        "status": "shutting_down",
+        "message": "Server is shutting down",
+        "timestamp": time.time(),
+        "uptime": time.time() - server_start_time if 'server_start_time' in globals() else 0
+    }
+
+    # Schedule shutdown after returning response
+    asyncio.create_task(perform_shutdown())
+
+    return web.json_response(shutdown_info, status=200)
+
+
+async def perform_shutdown():
+    """Perform the actual shutdown after a small delay to allow response to be sent"""
+    await asyncio.sleep(0.5)  # Wait for response to be sent
+    print("Performing server shutdown...")
+    os._exit(0)  # Exit the process
 
 
 async def chat_handler(request: web.Request) -> web.Response:
@@ -201,13 +225,15 @@ async def main():
     # Create web application
     app = web.Application()
     app.router.add_get('/health', health_handler)
+    app.router.add_post('/shutdown', shutdown_handler)
     app.router.add_post('/chat', chat_handler)
 
     # Start server
     print(f"Starting HTTP server on port {args.port}")
     print(f"API endpoints:")
-    print(f"  - Health: http://localhost:{args.port}/health")
-    print(f"  - Chat:   http://localhost:{args.port}/chat")
+    print(f"  - Health:   http://localhost:{args.port}/health")
+    print(f"  - Shutdown: http://localhost:{args.port}/shutdown")
+    print(f"  - Chat:     http://localhost:{args.port}/chat")
     runner = web.AppRunner(app)
     await runner.setup()
     site = web.TCPSite(runner, 'localhost', args.port)

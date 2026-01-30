@@ -25,7 +25,7 @@ http://localhost:<port>
 
 ### Endpoints
 
-The API provides two main endpoints:
+The API provides three main endpoints:
 
 #### GET `/health`
 Health check endpoint to monitor server status and configuration. This endpoint is useful for:
@@ -113,6 +113,30 @@ Send a message to the AI agent and receive a response.
   - 500 Internal Server Error: Unexpected error occurred
   - 503 Service Unavailable: Agent not initialized
 
+#### POST `/shutdown`
+Gracefully shutdown the server by exiting the Python process. This endpoint is useful for:
+- Controlled server shutdown in containerized environments
+- Automated deployment scenarios
+- Testing and development
+
+**Request:**
+- Method: `POST`
+- No request body required
+
+**Response:**
+- Content-Type: `application/json`
+- Success (200 OK):
+  ```json
+  {
+    "status": "shutting_down",
+    "message": "Server is shutting down",
+    "timestamp": 1706548623.45,
+    "uptime": 3600.5
+  }
+  ```
+
+**Note:** The server will exit approximately 0.5 seconds after returning the response to ensure the client receives the response before the connection is closed.
+
 ### Example Usage
 
 #### Using curl:
@@ -129,6 +153,9 @@ curl -X POST http://localhost:8080/chat \
 curl -X POST http://localhost:8080/chat \
   -H "Content-Type: application/json" \
   -d '{"message": "What did I just ask?", "session_id": "user123"}'
+
+# Shutdown server
+curl -X POST http://localhost:8080/shutdown
 ```
 
 #### Using Python:
